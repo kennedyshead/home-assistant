@@ -133,6 +133,7 @@ class IsWorkdaySensor(BinarySensorDevice):
         self._excludes = excludes
         self._days_offset = days_offset
         self._state = None
+        self._attributes = None
 
     @property
     def name(self):
@@ -179,11 +180,33 @@ class IsWorkdaySensor(BinarySensorDevice):
 
         # Get iso day of the week (1 = Monday, 7 = Sunday)
         date = get_date(datetime.today()) + timedelta(days=self._days_offset)
+
+        self._state = await _is_workday(date)
+
+        num_days = (dt.replace(month=dt.month % 12 + 1, day=1) - timedelta(
+                days=1)).day
+
+        offset = datetime.today().day
+        for day in range(num_days):
+            date = get_date(datetime.today()) + timedelta(days=day-offset)
+            if not await self._is_workday(date):
+                num_days -= 1
+
+        self._attributes = {
+            'Workdays this month': num_days
+        }
+
+    async def _is_workday(self, date):
+        """Returns True if the given date is a workday."""
         day = date.isoweekday() - 1
         day_of_week = day_to_string(day)
-
         if self.is_include(day_of_week, date):
             self._state = True
 
         if self.is_exclude(day_of_week, date):
             self._state = False
+
+    @property
+    def device_state_attributes(self):
+        "State attributes property."
+        return self.attributes
